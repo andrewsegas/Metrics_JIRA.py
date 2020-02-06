@@ -5,7 +5,7 @@ import config
 from jira import JIRA
 
 
-class CAProtheusProcess(object):
+class JiraProcess(object):
     """Auditoria de processo Protheus. """
 
     jira = None

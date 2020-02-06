@@ -1,24 +1,22 @@
-from protheus_process import CAProtheusProcess
+from jira_process import JiraProcess
 import datetime
 import numpy as np
 import pandas as pd
+import os
 import config
-import xlwt
 from openpyxl import Workbook
 from openpyxl.styles import PatternFill, Border, Side, Alignment, Protection, Font
 
 # ### Instância a classe de Auditoria de processo Protheus
 
-ProtheusProcess = CAProtheusProcess()
+jiraProcess = JiraProcess()
 
-#Format Date
-styleDate = xlwt.XFStyle()
-styleDate.num_format_str = 'DD-MM-YY hh:mm:ss'
-#Format Number
-styleNum = xlwt.XFStyle()
-styleNum.num_format_str = '"0.00"'
-#Format Negrito
-styleTitle = xlwt.easyxf('font: name Arial, color-index red, bold on')
+allCycle_Lead = []
+allCycle_Lead.append(config.projectList[0])
+allCycle_Lead.append(["Cycle Time"])  #1
+allCycle_Lead.append(["Queue Time"])  #2
+allCycle_Lead.append(["Lead Time"])  #3
+allCycle_Lead.append(["Suporte Time"])  #4
 
 
 for x in range(0,len(config.projectList[0])):
@@ -33,99 +31,125 @@ for x in range(0,len(config.projectList[0])):
 
     # ### Obtém uma lista de issues conforme o filtro. ###
     print("Buscando issues no filtro para Cycle: " + config.projectList[0][x])
-    issues = ProtheusProcess.getListIssues(cfilterCycle)
+    issues = jiraProcess.getListIssues(cfilterCycle)
     print(f'Quantidade de Issues: {len(issues)}')
-
-    issuesCycle = [ProtheusProcess.getCycle_Queue(x.key) for x in issues]
-
-    d = []
-
-    d.append(([x.key for x in issues]))  # 'Issue'
-    d.append(([x[0] for x in issuesCycle]))  # 'Criação'
-    d.append(([x[1] for x in issuesCycle]))  # 'Data Inicio Planejado'
-    d.append(([x[2] for x in issuesCycle]))  # 'Resolvido'
-    d.append(([x[3] for x in issuesCycle]))  # 'Cycle'
-    d.append(([x[4] for x in issuesCycle]))  # 'Queue'
 
     wb = Workbook()
     sheet1 = wb.active
     sheet1.title = "Cycle"
 
-    sheet1.cell(1, 1).value = "Issues"
-    sheet1.cell(1, 1).font = Font(bold=True)
-    sheet1.cell(1, 2).value = "Created"
-    sheet1.cell(1, 2).font = Font(bold=True)
-    sheet1.cell(1, 3).value = "Data Inicio Planejado"
-    sheet1.cell(1, 3).font = Font(bold=True)
-    sheet1.cell(1, 4).value = "Resolved"
-    sheet1.cell(1, 4).font = Font(bold=True)
-    sheet1.cell(1, 5).value = "Cycle"
-    sheet1.cell(1, 5).font = Font(bold=True)
-    sheet1.cell(1, 6).value = "Queue"
-    sheet1.cell(1, 6).font = Font(bold=True)
+    if(len(issues) > 0):
+        issuesCycle = [jiraProcess.getCycle_Queue(x.key) for x in issues]
 
-    for i, l in enumerate(d):
-        for j, col in enumerate(l):
-            sheet1.cell(j+2, i+1, col)
+        d = []
 
-    '''     if (i == 0):
-                ws.write(j+1, i, col)
-            elif (i < 4):
-                ws.write(j+1, i, col.strftime("%d/%m/%Y %H:%M:%S"), styleDate)
-            elif (i == 4):
-                ws.write(j+1, i, xlwt.Formula(f"D{j+2}-C{j+2}"))
-            else:
-                ws.write(j+1, i, xlwt.Formula(f"C{j+2}-B{j+2}"))#str(col.days), styleNum)
+        d.append(([x.key for x in issues]))  # 'Issue'
+        d.append(([x[0] for x in issuesCycle]))  # 'Criação'
+        d.append(([x[1] for x in issuesCycle]))  # 'Data Inicio Planejado'
+        d.append(([x[2] for x in issuesCycle]))  # 'Resolvido'
+        d.append(([x[3] for x in issuesCycle]))  # 'Cycle'
+        d.append(([x[4] for x in issuesCycle]))  # 'Queue'
 
-    ws.write(j+2, 4, f"=MÉDIA(E2:E{j+2})")
-    ws.write(j+2, 5, f"=MÉDIA(F2:F{j+2})")'''
+        sheet1.cell(1, 1).value = "Issues"
+        sheet1.cell(1, 1).font = Font(bold=True)
+        sheet1.cell(1, 2).value = "Created"
+        sheet1.cell(1, 2).font = Font(bold=True)
+        sheet1.cell(1, 3).value = "Data Inicio Planejado"
+        sheet1.cell(1, 3).font = Font(bold=True)
+        sheet1.cell(1, 4).value = "Resolved"
+        sheet1.cell(1, 4).font = Font(bold=True)
+        sheet1.cell(1, 5).value = "Cycle"
+        sheet1.cell(1, 5).font = Font(bold=True)
+        sheet1.cell(1, 6).value = "Queue"
+        sheet1.cell(1, 6).font = Font(bold=True)
 
-    wb.save('C:/workspace/JIRA/metricas/Result/metrics_' + config.projectList[0][x] + '.xlsx')
+        for i, l in enumerate(d):
+            for j, col in enumerate(l):
+                if (i < 4):
+                    sheet1.cell(j+2, i+1, col)
+                elif (i == 4):
+                    sheet1.cell(j+2, i+1, (f"=D{j+2}-C{j+2}"))
+                else:
+                    sheet1.cell(j+2, i+1, (f"=C{j+2}-B{j+2}"))
 
+        allCycle_Lead[1].append((sum(d[4], datetime.timedelta(0,0))/len(d[4])))
+        allCycle_Lead[2].append((sum(d[5], datetime.timedelta(0,0)) / len(d[5])))
+
+        sheet1.cell(j+3, 5, allCycle_Lead[1][-1].days)
+        sheet1.cell(j+3, 6, allCycle_Lead[2][-1].days)
+    else:
+        allCycle_Lead[1].append(datetime.timedelta(0))
+        allCycle_Lead[2].append(datetime.timedelta(0))
 
     #Lead e Suporte
 
     # ### Obtém uma lista de issues conforme o filtro. ###
     print("Buscando issues no filtro para Lead: " + config.projectList[0][x])
-    issues = ProtheusProcess.getListIssues(cfilterLead)
+    issues = jiraProcess.getListIssues(cfilterLead)
     print(f'Quantidade de Issues: {len(issues)}')
 
-    issuesCycle = [ProtheusProcess.getLead_Suporte(x.key) for x in issues]
+    sheet2 = wb.create_sheet("Lead")
 
-    ### Finished JIRA connection
+    if (len(issues) > 0):
+        issuesCycle = [jiraProcess.getLead_Suporte(x.key) for x in issues]
 
-    d = []
+        ### Finished JIRA connection
 
-    d.append(([x.key for x in issues]))  # 'Issue'
-    d.append(([x[0] for x in issuesCycle]))  # 'Criação'
-    d.append(([x[1] for x in issuesCycle]))  # 'Data abertura ticket'
-    d.append(([x[2] for x in issuesCycle]))  # 'Resolvido'
-    d.append(([x[3] for x in issuesCycle]))  # 'Lead'
-    d.append(([x[4] for x in issuesCycle]))  # 'Suporte'
+        d = []
 
-    ws = wb.add_sheet('Lead')
-    ws.write(0, 0, "Issues",styleTitle)
-    ws.write(0, 1, "Created",styleTitle)
-    ws.write(0, 2, "Data Abertura Ticket",styleTitle)
-    ws.write(0, 3, "Resolved",styleTitle)
-    ws.write(0, 4, "Lead",styleTitle)
-    ws.write(0, 5, "Suporte",styleTitle)
+        d.append(([x.key for x in issues]))  # 'Issue'
+        d.append(([x[0] for x in issuesCycle]))  # 'Criação'
+        d.append(([x[1] for x in issuesCycle]))  # 'Data abertura ticket'
+        d.append(([x[2] for x in issuesCycle]))  # 'Resolvido'
+        d.append(([x[3] for x in issuesCycle]))  # 'Lead'
+        d.append(([x[4] for x in issuesCycle]))  # 'Suporte'
 
-    for i, l in enumerate(d):
-        for j, col in enumerate(l):
-            if (i == 0):
-                ws.write(j+1, i, col)
-            elif (i < 4):
-                ws.write(j+1, i, col.strftime("%d/%m/%Y %H:%M:%S"), styleDate)
-            elif (i == 4):
-                ws.write(j+1, i, xlwt.Formula(f"D{j+2}-C{j+2}"))
-            else:
-                ws.write(j+1, i, xlwt.Formula(f"B{j+2}-C{j+2}"))#str(col.days), styleNum)
+        sheet2.cell(1, 1).value = "Issues"
+        sheet2.cell(1, 1).font = Font(bold=True)
+        sheet2.cell(1, 2).value = "Created"
+        sheet2.cell(1, 2).font = Font(bold=True)
+        sheet2.cell(1, 3).value = "Data Inicio Planejado"
+        sheet2.cell(1, 3).font = Font(bold=True)
+        sheet2.cell(1, 4).value = "Resolved"
+        sheet2.cell(1, 4).font = Font(bold=True)
+        sheet2.cell(1, 5).value = "Lead"
+        sheet2.cell(1, 5).font = Font(bold=True)
+        sheet2.cell(1, 6).value = "Fila"
+        sheet2.cell(1, 6).font = Font(bold=True)
 
-    ws.write(j+2, 4, f"=MÉDIA(E2:E{j+2})")
-    ws.write(j+2, 5, f"=MÉDIA(F2:F{j+2})")
+        for i, l in enumerate(d):
+            for j, col in enumerate(l):
+                if (i < 4):
+                    sheet2.cell(j+2, i+1, col)
+                elif (i == 4):
+                    sheet2.cell(j+2, i+1, (f"=D{j+2}-C{j+2}"))
+                else:
+                    sheet2.cell(j+2, i+1, (f"=B{j+2}-C{j+2}"))
 
 
-    wb.save('C:/workspace/JIRA/metricas/Result/metrics_'+ config.projectList[0][x] +'.xls')
+        allCycle_Lead[3].append((sum(d[4], datetime.timedelta(0,0))/len(d[4])))
+        allCycle_Lead[4].append((sum(d[5], datetime.timedelta(0,0)) / len(d[5])))
 
-ProtheusProcess.close()
+        sheet2.cell(j+3, 5, allCycle_Lead[3][-1].days)
+        sheet2.cell(j+3, 6, allCycle_Lead[4][-1].days)
+    else:
+        allCycle_Lead[3].append(datetime.timedelta(0))
+        allCycle_Lead[4].append(datetime.timedelta(0))
+
+    wb.save(os.getcwd() + '/Result/metrics_'+ config.projectList[0][x] +'.xlsx')
+
+wFinal = Workbook()
+sheetTotal = wFinal.active
+sheetTotal.title = "Total"
+
+for i, l in enumerate(allCycle_Lead):
+    for j, col in enumerate(l):
+        if ( j>0 and i>0):
+            sheetTotal.cell(j + 1, i + 1, col.days)
+        else:
+            sheetTotal.cell(j + 1, i + 1, col)
+            sheetTotal.cell(j + 1, i + 1).font = Font(bold=True)
+
+wFinal.save(os.getcwd() + '/Result/metrics_FINAL.xlsx')
+
+jiraProcess.close()
