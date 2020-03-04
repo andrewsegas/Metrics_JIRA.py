@@ -6,9 +6,9 @@ import os
 import config
 from openpyxl import Workbook
 from openpyxl.styles import PatternFill, Border, Side, Alignment, Protection, Font
+from unidecode import unidecode
 
 # ### Instância a classe de Auditoria de processo Protheus
-
 jiraProcess = JiraProcess()
 
 allCycle_Lead = []
@@ -18,16 +18,17 @@ allCycle_Lead.append(["Queue Time"])  #2
 allCycle_Lead.append(["Lead Time"])  #3
 allCycle_Lead.append(["Suporte Time"])  #4
 
-
 for x in range(0,len(config.projectList[0])):
     if config.projectList[0][x] in 'mob|ba':  # get story with manutencao
-        cfilterCycle = '(' + config.projectList[1][x] + ') AND resolved >= startOfMonth(-1) AND resolved <= endOfMonth(-1) AND issuetype  in (Story, Manutenção) AND cf[17100] is not EMPTY ORDER BY resolved ASC'
-        cfilterLead = '(' + config.projectList[1][x] + ') AND resolved >= startOfMonth(-1) AND resolved <= endOfMonth(-1) AND issuetype in (Story, Manutenção) AND cf[11043] is not EMPTY ORDER BY resolved ASC'
+        # Cycle e Fila
+        cfilterCycle = '(' + config.projectList[1][x] + ') AND resolved >= startOfMonth(-1) AND resolved <= endOfMonth(-1) AND issuetype  in (Story, Manutenção, "Rejeição - Manutenção") AND cf[17100] is not EMPTY ORDER BY resolved ASC'
+
+        cfilterLead = '(' + config.projectList[1][x] + ') AND resolved >= startOfMonth(-1) AND resolved <= endOfMonth(-1) AND issuetype in (Story, Manutenção, "Rejeição - Manutenção") AND cf[11043] is not EMPTY ORDER BY resolved ASC'
     else:
         #Cycle e Fila
-        cfilterCycle = '(' + config.projectList[1][x] +') AND resolved >= startOfMonth(-1) AND resolved <= endOfMonth(-1) AND issuetype  in (Manutenção) AND cf[17100] is not EMPTY ORDER BY resolved ASC'
+        cfilterCycle = '(' + config.projectList[1][x] +') AND resolved >= startOfMonth(-1) AND resolved <= endOfMonth(-1) AND issuetype  in (Manutenção, "Rejeição - Manutenção") AND cf[17100] is not EMPTY ORDER BY resolved ASC'
         #Lead e Suporte
-        cfilterLead = '(' + config.projectList[1][x] +') AND resolved >= startOfMonth(-1) AND resolved <= endOfMonth(-1) AND issuetype in (Manutenção) AND cf[11043] is not EMPTY ORDER BY resolved ASC'
+        cfilterLead = '(' + config.projectList[1][x] +') AND resolved >= startOfMonth(-1) AND resolved <= endOfMonth(-1) AND issuetype in (Manutenção, "Rejeição - Manutenção") AND cf[11043] is not EMPTY ORDER BY resolved ASC'
 
     # ### Obtém uma lista de issues conforme o filtro. ###
     print("Buscando issues no filtro para Cycle: " + config.projectList[0][x])
@@ -81,6 +82,50 @@ for x in range(0,len(config.projectList[0])):
         allCycle_Lead[1].append(datetime.timedelta(0))
         allCycle_Lead[2].append(datetime.timedelta(0))
 
+    ### GET TransitiONS ###
+
+    if config.lTransition:
+        print("Buscando Transitions ")
+        transition = [jiraProcess.getTransition(x.key) for x in issues]
+
+        # Procura o status do projeto atual
+        if config.projectList[0][x] in config.statusList[0]:
+            ind = config.statusList[0].index(config.projectList[0][x])
+        else:
+            print("O Projeto " + config.projectList[0][x] + " nao tem Status para transition, sera utilizado o padrao")
+            ind = config.statusList[0].index('padrao')
+
+        if config.statusList[1][ind] != "0":
+            # retira os espaços
+            listStatus = [i.strip() for i in config.statusList[1][ind].split(',')]
+
+            sheetT = wb.create_sheet("Transition")
+
+            sheetT.cell(1, 1).value = "Issues"
+            sheetT.cell(1, 1).font = Font(bold=True)
+
+            for nT, sT in enumerate(listStatus):  # preenche cabecalho do status
+                sheetT.cell(1, nT + 2).value = sT
+                sheetT.cell(1, nT + 2).font = Font(bold=True)
+
+            for nIssue, cont in enumerate(transition):  # Issue por issue
+                sheetT.cell(nIssue + 2, 1, issues[nIssue].key)  # Preenche o codigo da issue
+                for nStatus, sStatus in enumerate(listStatus):  # Status por Status
+                    for item in cont:  # transition por transition
+                        if sStatus.lower() in config.calculatorList[0]:
+                            indCalc = config.calculatorList[0].index(sStatus.lower())
+                            formula = config.calculatorList[1][indCalc].replace("$",str(nIssue + 2)) # da replace no $ para a linha
+                            sheetT.cell(nIssue + 2, nStatus + 2,"=" + formula )  # Preenche a formula na tag [Calculator]
+                            break
+                        if unidecode(item[0].lower()) == unidecode(sStatus.lower()):
+                            #print("achou")
+                            dateT = datetime.datetime.strptime(item[1], '%Y-%m-%dT%H:%M:%S.%f%z')
+                            sheetT.cell(nIssue + 2, nStatus + 2, dateT)  # Preenche a data
+                            break
+                    else:
+                        print("Nao achou: " + unidecode(sStatus.lower()) + " Na issue " + issues[nIssue].key)
+                        sheetT.cell(nIssue + 2, nStatus + 2, datetime.timedelta(0))  # Preenche o codigo da issue
+
     #Lead e Suporte
 
     # ### Obtém uma lista de issues conforme o filtro. ###
@@ -108,13 +153,13 @@ for x in range(0,len(config.projectList[0])):
         sheet2.cell(1, 1).font = Font(bold=True)
         sheet2.cell(1, 2).value = "Created"
         sheet2.cell(1, 2).font = Font(bold=True)
-        sheet2.cell(1, 3).value = "Data Inicio Planejado"
+        sheet2.cell(1, 3).value = "Data Abertura Ticket"
         sheet2.cell(1, 3).font = Font(bold=True)
         sheet2.cell(1, 4).value = "Resolved"
         sheet2.cell(1, 4).font = Font(bold=True)
         sheet2.cell(1, 5).value = "Lead"
         sheet2.cell(1, 5).font = Font(bold=True)
-        sheet2.cell(1, 6).value = "Fila"
+        sheet2.cell(1, 6).value = "Suporte"
         sheet2.cell(1, 6).font = Font(bold=True)
 
         for i, l in enumerate(d):

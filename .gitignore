@@ -21,3 +21,7 @@ jira_privatekey.pcks8
 *.cer
 *.pem
 ProjectConfig.ini
+jira_privatekey.pcks8
+jira_privatekey.pem
+jira_publickey.cer
+jira_publickey.pem

@@ -27,7 +27,11 @@ class JiraProcess(object):
                 'consumer_key': config.CONSUMER_KEY,
                 'key_cert': config.RSA_KEY})
         except:'''
-        options = {'server': 'http://' + config.base_jira + '.com.br'}
+
+        options = {'server': 'http://' + config.base_jira + '.com.br',
+                   "headers": {
+                       'User-Agent': 'CODIGO DE USER AGENT',}
+                   }
         try:
             self.jira = JIRA(options, basic_auth=(config.user, config.password))
             print("Conectado em " + config.base_jira)
